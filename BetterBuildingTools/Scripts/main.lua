@@ -1,5 +1,7 @@
 -- BetterBuildingTools (BBT) — Lua side
--- BStat HUD + settings menu + guide + undo tracking
+-- Copyright (c) 2026 2BIT (x2BITx)
+-- Source-Available License — see LICENSE in repo root
+-- https://github.com/2BITTER/windrose-modding
 local UEHelpers = require("UEHelpers")
 
 local function log(msg) print("[BBT] " .. tostring(msg)) end

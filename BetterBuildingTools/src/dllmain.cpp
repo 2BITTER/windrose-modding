@@ -1,3 +1,8 @@
+// BetterBuildingTools (BBT) — C++ DLL
+// Copyright (c) 2026 2BIT (x2BITx)
+// Source-Available License — see LICENSE in repo root
+// https://github.com/2BITTER/windrose-modding
+
 #include <Mod/CppUserModBase.hpp>
 #include <UE4SSProgram.hpp>
 #include <DynamicOutput/DynamicOutput.hpp>

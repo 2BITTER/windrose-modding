@@ -1,0 +1,32 @@
+# BetterBuildingTools (BBT) config
+# Edit values then reload the mod (or restart the game) to apply.
+# Keys are single letters/digits (A-Z, 0-9). *_shift requires Shift held.
+
+copyobject_enabled = true
+copyobject_key     = C
+copyobject_shift   = true
+
+copyangle_enabled = true
+copyangle_key     = C
+copyangle_alt     = true
+
+undo_enabled   = true
+undo_key       = Z
+undo_shift     = true
+undo_max_stack = 10
+
+freebuild_no_cost        = true
+freebuild_no_stability   = false
+
+rotation_1deg_enabled  = true
+rotation_5deg_enabled  = true
+rotation_10deg_enabled = true
+
+bstat_enabled = true
+
+placement_allow_under_roof = true
+placement_no_roof_required = true
+placement_no_bonfire       = true
+
+ui_menu_scale  = 90
+ui_bstat_scale = 100

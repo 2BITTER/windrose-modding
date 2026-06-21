@@ -1,7 +1,5 @@
 -- BetterBuildingTools (BBT) — Lua side
--- Copyright (c) 2026 2BIT (x2BITx)
--- Source-Available License — see LICENSE in repo root
--- https://github.com/2BITTER/windrose-modding
+-- BStat HUD + settings menu + guide + undo tracking
 local UEHelpers = require("UEHelpers")
 
 local function log(msg) print("[BBT] " .. tostring(msg)) end
@@ -737,7 +735,7 @@ local function BuildSettings()
 
     -- Content area with minimum height for visual stability
     local contentSize = CreateWidget("SizeBox", vbox, "ContentSize")
-    contentSize:SetMinDesiredWidth(MS(420))
+    contentSize:SetMinDesiredWidth(MS(500))
     contentSize:SetMinDesiredHeight(MS(MIN_CONTENT_HEIGHT))
     local contentBox = CreateWidget("VerticalBox", contentSize, "ContentBox")
     contentSize:SetContent(contentBox)

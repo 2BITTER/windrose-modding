@@ -1,8 +1,3 @@
-// BetterBuildingTools (BBT) — C++ DLL
-// Copyright (c) 2026 2BIT (x2BITx)
-// Source-Available License — see LICENSE in repo root
-// https://github.com/2BITTER/windrose-modding
-
 #include <Mod/CppUserModBase.hpp>
 #include <UE4SSProgram.hpp>
 #include <DynamicOutput/DynamicOutput.hpp>
@@ -1757,7 +1752,7 @@ static int lua_BBT_GetBuildStatus(lua_State* L)
     lua_pushinteger(L, g_cfg.undoMaxStack.load());
     lua_setfield(L, -2, "undoMax");
 
-    lua_pushstring(L, "0.34");
+    lua_pushstring(L, "0.35");
     lua_setfield(L, -2, "version");
 
     std::string coKey = KeyToString(g_cfg.copyObjKey, g_cfg.copyObjShift, false);
@@ -1875,14 +1870,14 @@ public:
     BuildingUndoMod() : CppUserModBase()
     {
         ModName        = STR("BetterBuildingTools");
-        ModVersion     = STR("0.34");
+        ModVersion     = STR("0.35");
         ModDescription = STR("BBT — copy object, copy angle, undo, free-build, placement freedom, fine rotation, BStat HUD, in-game settings");
         ModAuthors     = STR("2BIT");
 
         register_tab(STR("BetterBuildingTools"), [](CppUserModBase* /*instance*/) {
             UE4SS_ENABLE_IMGUI();
 
-            ImGui::TextUnformatted("BetterBuildingTools v0.34");
+            ImGui::TextUnformatted("BetterBuildingTools v0.35");
             ImGui::Separator();
 
             bool copyObj = g_cfg.copyObjEnabled;
@@ -2063,7 +2058,7 @@ public:
         }
 
         Output::send<LogLevel::Verbose>(
-            STR("[BBT] game-thread dispatcher active — ready v0.34 (undo cooldown + safe unload + keybind bridge)\n"));
+            STR("[BBT] game-thread dispatcher active — ready v0.35 (undo cooldown + safe unload + keybind bridge)\n"));
     }
 
     auto on_lua_start(LuaMadeSimple::Lua& lua,

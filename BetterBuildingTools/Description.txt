@@ -1,0 +1,8 @@
+BetterBuildingTools (BBT) — Precision building tools for Windrose.
+
+Features: fine rotation (1/5/10/15/45/90 degrees), copy object, copy angle, undo,
+build status HUD, settings menu (F2), placement freedom (no roof, no bonfire, no stability,
+allow under roof, no shore), free build mode, UI scaling.
+
+By 2BIT (x2BITx)
+https://www.nexusmods.com/windrose/mods/478

@@ -1,13 +1,17 @@
-# BBT Release Packager + Nexus Publisher
-# Builds the release zip for Nexus/CurseForge/Vortex
+# BBT Release Packager + Nexus/CurseForge Publisher
+# Builds the release zip and publishes to mod platforms
 # Usage:
-#   powershell -ExecutionPolicy Bypass -File build_release.ps1             # build only
-#   powershell -ExecutionPolicy Bypass -File build_release.ps1 -Publish    # build + upload to Nexus
-#   powershell -ExecutionPolicy Bypass -File build_release.ps1 -PublishOnly # upload existing zip
+#   powershell -ExecutionPolicy Bypass -File build_release.ps1                        # build only
+#   powershell -ExecutionPolicy Bypass -File build_release.ps1 -Publish               # build + upload to Nexus + CurseForge
+#   powershell -ExecutionPolicy Bypass -File build_release.ps1 -PublishOnly            # upload existing zip to Nexus + CurseForge
+#   powershell -ExecutionPolicy Bypass -File build_release.ps1 -Publish -NexusOnly     # build + Nexus only
+#   powershell -ExecutionPolicy Bypass -File build_release.ps1 -Publish -CurseForgeOnly # build + CurseForge only
 
 param(
     [switch]$Publish,
-    [switch]$PublishOnly
+    [switch]$PublishOnly,
+    [switch]$NexusOnly,
+    [switch]$CurseForgeOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,8 +20,13 @@ $modSource = "G:\SteamLibrary\steamapps\common\Windrose\R5\Binaries\Win64\ue4ss\
 $outputDir = "F:\WindroseModing\Windrose\releases"
 $tempDir   = "F:\WindroseModing\Windrose\releases\_staging"
 
-$nexusApiBase  = "https://api.nexusmods.com/v3"
-$nexusModFileId = "7556516"
+$nexusApiBase      = "https://api.nexusmods.com/v3"
+$nexusModFileId    = "7556516"
+$cfApiBase         = "https://windrose.curseforge.com/api"
+$cfProjectId       = "1580564"
+
+$doNexus      = ($Publish -or $PublishOnly) -and (-not $CurseForgeOnly)
+$doCurseForge = ($Publish -or $PublishOnly) -and (-not $NexusOnly)
 
 # Pull version from the DLL's Lua bridge by reading dllmain.cpp
 $srcFile = "G:\UnrealEngine\WindRose\BuildingUndo\src\dllmain.cpp"
@@ -73,7 +82,7 @@ if (-not $PublishOnly) {
 }
 
 # ── PUBLISH TO NEXUS ───────────────────────────────────────────────────
-if ($Publish -or $PublishOnly) {
+if ($doNexus) {
     Write-Host ""
     Write-Host "===================================================" -ForegroundColor Magenta
     Write-Host "  Publishing to Nexus Mods..." -ForegroundColor Magenta
@@ -86,6 +95,9 @@ if ($Publish -or $PublishOnly) {
         exit 1
     }
     $apiKey = $env:NEXUS_API_KEY
+    if (-not $apiKey) {
+        $apiKey = [System.Environment]::GetEnvironmentVariable("NEXUS_API_KEY", "User")
+    }
     if (-not $apiKey) {
         Write-Host "ERROR: NEXUS_API_KEY environment variable not set." -ForegroundColor Red
         Write-Host "Set it with: setx NEXUS_API_KEY `"your-key-here`"" -ForegroundColor Red
@@ -188,5 +200,64 @@ if ($Publish -or $PublishOnly) {
     Write-Host ""
     Write-Host "===================================================" -ForegroundColor Green
     Write-Host "  v$version is LIVE on Nexus Mods" -ForegroundColor Green
+    Write-Host "===================================================" -ForegroundColor Green
+}
+
+# ── PUBLISH TO CURSEFORGE ─────────────────────────────────────────────
+if ($doCurseForge) {
+    Write-Host ""
+    Write-Host "===================================================" -ForegroundColor Magenta
+    Write-Host "  Publishing to CurseForge..." -ForegroundColor Magenta
+    Write-Host "===================================================" -ForegroundColor Magenta
+
+    # Validate
+    if (-not (Test-Path $zipPath)) {
+        Write-Host "ERROR: ZIP not found at $zipPath" -ForegroundColor Red
+        Write-Host "Run without -PublishOnly first, or check the version." -ForegroundColor Red
+        exit 1
+    }
+    $cfApiKey = [System.Environment]::GetEnvironmentVariable("CURSEFORGE_API_KEY", "User")
+    if (-not $cfApiKey) {
+        $cfApiKey = $env:CURSEFORGE_API_KEY
+    }
+    if (-not $cfApiKey) {
+        Write-Host "ERROR: CURSEFORGE_API_KEY environment variable not set." -ForegroundColor Red
+        Write-Host "Set it with: setx CURSEFORGE_API_KEY `"your-token-here`"" -ForegroundColor Red
+        exit 1
+    }
+
+    # Build metadata JSON — write to temp file to avoid PowerShell/curl quoting issues
+    $cfMetadata = @{
+        changelog     = "v$version update"
+        changelogType = "text"
+        displayName   = "BetterBuildingTools v$version"
+        releaseType   = "release"
+    } | ConvertTo-Json -Compress
+    $cfMetaFile = Join-Path $env:TEMP "bbt_cf_metadata.json"
+    [System.IO.File]::WriteAllText($cfMetaFile, $cfMetadata)
+
+    Write-Host ""
+    Write-Host "Uploading $zipName to CurseForge (project $cfProjectId)..." -ForegroundColor Yellow
+    $cfUrl = "$cfApiBase/projects/$cfProjectId/upload-file"
+    $curlOut = & curl.exe -s --fail-with-body -X POST `
+        -H "X-Api-Token: $cfApiKey" `
+        -F "metadata=<$cfMetaFile" `
+        -F "file=@$zipPath" `
+        $cfUrl 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: CurseForge upload failed:" -ForegroundColor Red
+        Write-Host $curlOut -ForegroundColor Red
+        exit 1
+    }
+
+    $cfResp = $curlOut | ConvertFrom-Json
+    $cfFileId = $cfResp.id
+    Write-Host ""
+    Write-Host "Published!" -ForegroundColor Green
+    Write-Host "  Version: $version" -ForegroundColor Green
+    Write-Host "  File ID: $cfFileId" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "===================================================" -ForegroundColor Green
+    Write-Host "  v$version is LIVE on CurseForge" -ForegroundColor Green
     Write-Host "===================================================" -ForegroundColor Green
 }

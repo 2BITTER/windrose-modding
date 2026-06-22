@@ -1,0 +1,33 @@
+BetterBuildingTools Roadmap
+==========================
+
+DONE:
+  - Fine rotation (1/5/10/15/45/90 degrees)
+  - Copy Object (Shift+C)
+  - Copy Angle (Alt+C)
+  - Undo (Ctrl+Z)
+  - Build Status HUD (BStat)
+  - Settings Menu (F2) with drill-down sections
+  - In-game Guide
+  - Placement Freedom: Allow Under Roof, No Roof Required
+  - Free Build (no resource cost)
+  - No Stability Required (single-block patching)
+  - UI Scaling (PgUp/PgDn, 70-150%)
+  - Automated Nexus + CurseForge publishing
+
+IN PROGRESS:
+  - No Bonfire Required (crafting stations work, decorations untested)
+  - No Shore Required (fix deployed, composite items need work)
+  - BStat build mode detection improvement
+
+PLANNED:
+  - Text Signs (place readable signs in the world)
+  - Bonfire Stacking
+  - Copy/Paste buildings (requires keystone)
+  - Blueprints / schematics (requires keystone)
+  - Replace object (requires keystone)
+  - More build camera modes
+
+FUTURE:
+  - Holographic preview before confirm
+  - Redo

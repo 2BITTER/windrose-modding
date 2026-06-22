@@ -1,0 +1,9 @@
+Additional Notes
+================
+
+- Requires UE4SS v3.x
+- Single player tested, multiplayer experimental (both players need BBT installed)
+- Config file is auto-generated on first run at: Mods\BetterBuildingTools\config.txt
+- All features are toggle-able via F2 settings menu or config file
+- No Shore Required: only affects items that natively require shore proximity (bells, wharfs, piers)
+- No Stability: patches only the currently held item, not all building pieces

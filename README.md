@@ -6,19 +6,19 @@ Mods and modding resources for [Windrose](https://store.steampowered.com/app/215
 
 | Mod | Description | Status |
 |-----|-------------|--------|
-| [BetterBuildingTools](BetterBuildingTools/) | Precision building tools — fine rotation, copy, undo, HUD, settings menu, placement freedom | Beta |
+| [BetterBuildingTools](BetterBuildingTools/) | Precision building tools — fine rotation, copy, undo, HUD, settings menu, placement freedom | Active Development |
+
+Each mod folder contains:
+- **-Dev-/** — Working source code (latest, may be unstable)
+- **Released/** — Last published source (matches Nexus/CurseForge release)
 
 ## Resources
 
-The [docs/](docs/) folder contains modding resources for anyone getting started with Windrose modding:
+The [Resources/](Resources/) folder contains shared modding resources for anyone getting started with Windrose modding.
 
-- **Getting Started** — tools, setup, and first steps
-- **Tools Reference** — Ghidra, FModel, CMake, UE4SS — what each does and why you need it
-- **Hooks Reference** — known game functions you can hook into
-- **Struct Offsets** — mapped memory layouts for key game classes
-- **UMG Widgets** — how to build in-game UI with UE4SS (gotchas included)
+## Downloads
 
-> These docs are a work in progress. If you've figured something out that isn't here, reach out — contributions welcome.
+Releases with downloadable zips are published via [GitHub Releases](https://github.com/2BITTER/windrose-modding/releases), [Nexus Mods](https://www.nexusmods.com/windrose/mods/478), and [CurseForge](https://www.curseforge.com/windrose/mods/betterbuildingtools).
 
 ## Requirements
 

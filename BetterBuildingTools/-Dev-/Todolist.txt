@@ -1,0 +1,18 @@
+BBT Dev Todolist
+================
+
+CURRENT:
+  [ ] Shore fix — composite items (bells/wharfs) need targeting
+  [ ] No Bonfire decorations — test and fix
+  [ ] BStat build mode detection — ghost preview actor approach
+  [ ] Tick tier system — centralize frame-skip logic
+
+NEXT:
+  [ ] TextSigns feature
+  [ ] KEYSTONE research (R5BuildingBrush / place-at-transform)
+
+BACKLOG:
+  [ ] Copy angle ghost visual update
+  [ ] Crafting bench undo regression
+  [ ] F3 UI move mode
+  [ ] More build camera modes

@@ -17,17 +17,27 @@ BStat.SetSettingsRef(Settings)
 Settings.SetBStatRef(BStat)
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Undo block tracking
+-- Undo block tracking (deferred — UFunction is JIT-loaded)
 -- ─────────────────────────────────────────────────────────────────────────────
-RegisterHook("/Script/R5.R5Ability_Building_MakeConstructCommand:OnBuildingAddedToIsland",
-    function(self, BuildingBlock)
-        local block = BuildingBlock:get()
-        if not block or not block:IsValid() then return end
-        if BuildingUndo_Push then
-            BuildingUndo_Push(block:GetAddress())
-        end
+local undoHookRegistered = false
+local function TryRegisterUndoHook()
+    if undoHookRegistered then return end
+    local ok, _ = pcall(function()
+        RegisterHook("/Script/R5.R5Ability_Building_MakeConstructCommand:OnBuildingAddedToIsland",
+            function(self, BuildingBlock)
+                local block = BuildingBlock:get()
+                if not block or not block:IsValid() then return end
+                if BuildingUndo_Push then
+                    BuildingUndo_Push(block:GetAddress())
+                end
+            end
+        )
+    end)
+    if ok then
+        undoHookRegistered = true
+        log("Undo hook registered")
     end
-)
+end
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Keybinds (VK codes)
@@ -50,12 +60,17 @@ end
 -- Main update loop
 -- ─────────────────────────────────────────────────────────────────────────────
 local function OnTick()
+    TryRegisterUndoHook()
     if not BStat.Root or not BStat.Root:IsValid() then
         BStat.Build()
     end
     BStat.Update()
     if Settings.Open then
-        Settings.Refresh()
+        if Settings.Root and Settings.Root:IsValid() then
+            Settings.Refresh()
+        else
+            Settings.Open = false
+        end
     end
 end
 

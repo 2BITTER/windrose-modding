@@ -5,6 +5,63 @@
 // active. When it goes null→non-null we (re)entered build mode → clear the stale
 // undo stack, because the game resets its own undo history on build-mode exit.
 // Only uses the CACHED construct ptr (no per-frame object-table scan).
+static int  g_earlyCacheStage = 0;   // 0=construct, 1-9=subsystems, 10=done
+static int  g_earlyCacheCounter = 0;
+
+static void TryEarlyCache()
+{
+    if (g_earlyCacheStage >= 10) return;
+    if (++g_earlyCacheCounter < 60) return; // one stage per ~second
+    g_earlyCacheCounter = 0;
+
+    switch (g_earlyCacheStage)
+    {
+    case 0:
+        if (!IsObjectValid(g_cachedConstruct))
+            GetConstructAbility();
+        if (!IsObjectValid(g_cachedConstruct)) return; // retry next second
+        Output::send<LogLevel::Verbose>(STR("[BBT] Early cache [0/9] construct ability ready\n"));
+        break;
+    case 1:
+        CacheBonfireTargets();
+        Output::send<LogLevel::Verbose>(STR("[BBT] Early cache [1/9] bonfire targets\n"));
+        break;
+    case 2:
+        CacheFreeBuildTargets();
+        Output::send<LogLevel::Verbose>(STR("[BBT] Early cache [2/9] free-build targets\n"));
+        break;
+    case 3:
+        CacheCraftBonfireTargets();
+        Output::send<LogLevel::Verbose>(STR("[BBT] Early cache [3/9] craft bonfire targets\n"));
+        break;
+    case 4:
+        CacheValidationProfiles();
+        Output::send<LogLevel::Verbose>(STR("[BBT] Early cache [4/9] validation profiles\n"));
+        break;
+    case 5:
+        CacheStabilityProfile();
+        Output::send<LogLevel::Verbose>(STR("[BBT] Early cache [5/9] stability profile\n"));
+        break;
+    case 6:
+        CachePlacementTargets();
+        Output::send<LogLevel::Verbose>(STR("[BBT] Early cache [6/9] placement targets\n"));
+        break;
+    case 7:
+        CacheDecorPatches();
+        Output::send<LogLevel::Verbose>(STR("[BBT] Early cache [7/9] decor patches\n"));
+        break;
+    case 8:
+        CacheBonfireItems();
+        Output::send<LogLevel::Verbose>(STR("[BBT] Early cache [8/9] bonfire items\n"));
+        break;
+    case 9:
+        CacheShoreItems();
+        Output::send<LogLevel::Verbose>(STR("[BBT] Early cache [9/9] shore items — all done\n"));
+        break;
+    }
+    g_earlyCacheStage++;
+}
+
 static void CheckBuildMode()
 {
     if (!IsObjectValid(g_cachedConstruct)) {
@@ -19,6 +76,7 @@ static void CheckBuildMode()
         GetConstructAbility();
         if (!IsObjectValid(g_cachedConstruct)) {
             g_inBuildPrev = false;
+            g_inBuildVisual.store(false);
             return;
         }
     }
@@ -48,14 +106,14 @@ public:
     BuildingUndoMod() : CppUserModBase()
     {
         ModName        = STR("BetterBuildingTools");
-        ModVersion     = STR("0.35");
+        ModVersion     = STR("0.36");
         ModDescription = STR("BBT — copy object, copy angle, undo, free-build, placement freedom, fine rotation, BStat HUD, in-game settings");
         ModAuthors     = STR("2BIT");
 
         register_tab(STR("BetterBuildingTools"), [](CppUserModBase* /*instance*/) {
             UE4SS_ENABLE_IMGUI();
 
-            ImGui::TextUnformatted("BetterBuildingTools v0.35");
+            ImGui::TextUnformatted("BetterBuildingTools v0.36");
             ImGui::Separator();
 
             bool copyObj = g_cfg.copyObjEnabled;
@@ -158,6 +216,7 @@ public:
         g_cachedConstruct  = nullptr;
         g_cachedPC         = nullptr;
         g_inBuildPrev      = false;
+        g_inBuildVisual.store(false);
         g_copyAngleHold.store(false);
         g_reqUndo.store(false);
         g_reqCopyObj.store(false);
@@ -196,6 +255,16 @@ public:
                 register_keydown_event(g_cfg.undoKey, mods, []() { g_reqUndo.store(true); });
             }
             Output::send<LogLevel::Verbose>(STR("[BBT] on_unreal_init: undo key registered\n"));
+
+            // F3 toggles BStat HUD visibility
+            {
+                Handler::ModifierKeyArray mods{};
+                register_keydown_event(Key::F3, mods, []() {
+                    bool cur = g_inBuildVisual.load();
+                    g_inBuildVisual.store(!cur);
+                });
+            }
+            Output::send<LogLevel::Verbose>(STR("[BBT] on_unreal_init: F3 BStat toggle registered\n"));
         } catch (...) {
             Output::send<LogLevel::Error>(STR("[BBT] CRASH in keydown registration — continuing without keys\n"));
         }
@@ -204,6 +273,7 @@ public:
             Hook::FCallbackOptions preOpts{};
             m_preTickId = Hook::RegisterEngineTickPreCallback(
                 [](auto& /*info*/, UEngine* /*Engine*/, float /*Dt*/, bool /*bIdle*/) {
+                    TryEarlyCache();
                     CheckBuildMode();
                     if (!g_cachedConstruct) return;
                     EnsureRotationHook();
@@ -233,7 +303,7 @@ public:
         }
 
         Output::send<LogLevel::Verbose>(
-            STR("[BBT] game-thread dispatcher active — ready v0.35 (undo cooldown + safe unload + keybind bridge)\n"));
+            STR("[BBT] game-thread dispatcher active — ready v0.36 (undo cooldown + safe unload + keybind bridge)\n"));
     }
 
     auto on_lua_start(LuaMadeSimple::Lua& lua,

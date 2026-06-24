@@ -26,8 +26,7 @@ bstat_enabled = true
 
 placement_allow_under_roof = true
 placement_no_roof_required = true
-placement_no_bonfire       = false
-placement_no_bell_shore    = true
+placement_no_bonfire       = true
 
-ui_menu_scale  = 110
+ui_menu_scale  = 90
 ui_bstat_scale = 100

@@ -110,6 +110,12 @@ int lua_BBT_GetBuildStatus(lua_State* L)
     lua_pushstring(L, "0.36");
     lua_setfield(L, -2, "version");
 
+    lua_pushboolean(L, g_copyAngleFired.exchange(false));
+    lua_setfield(L, -2, "copyAngleFired");
+
+    lua_pushboolean(L, g_copyObjFired.exchange(false));
+    lua_setfield(L, -2, "copyObjFired");
+
     std::string coKey = KeyToString(g_cfg.copyObjKey, g_cfg.copyObjShift, false);
     lua_pushstring(L, coKey.c_str());
     lua_setfield(L, -2, "keyCopyObject");
@@ -215,5 +221,42 @@ int lua_BuildingUndo_Clear(lua_State* /*L*/)
         g_UndoStack.clear();
         Output::send<LogLevel::Verbose>(STR("[BBT] Undo stack reset (build mode opened)\n"));
     }
+    return 0;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// TextSigns bridge
+// ──────────────────────────────────────────────────────────────────────────────
+
+extern bool g_signEditActive;
+extern char g_signTextBuf[];
+extern std::string g_signEditStatus;
+extern void ConfirmSignEditFromLua();
+
+int lua_BBT_GetSignState(lua_State* L)
+{
+    lua_newtable(L);
+    lua_pushboolean(L, g_signEditActive);
+    lua_setfield(L, -2, "editing");
+    lua_pushstring(L, g_signEditStatus.c_str());
+    lua_setfield(L, -2, "status");
+    lua_pushstring(L, g_signTextBuf);
+    lua_setfield(L, -2, "currentText");
+    return 1;
+}
+
+int lua_BBT_SubmitSignText(lua_State* L)
+{
+    const char* text = luaL_checkstring(L, 1);
+    std::strncpy(g_signTextBuf, text, 20);
+    g_signTextBuf[20] = '\0';
+    ConfirmSignEditFromLua();
+    return 0;
+}
+
+int lua_BBT_CancelSignEdit(lua_State* /*L*/)
+{
+    g_signEditActive = false;
+    g_signEditStatus = "Cancelled";
     return 0;
 }

@@ -55,7 +55,8 @@ if (-not $PublishOnly) {
     New-Item -ItemType Directory -Force (Join-Path $modStage "dlls") | Out-Null
     Copy-Item (Join-Path $modSource "dlls\main.dll") (Join-Path $modStage "dlls\main.dll")
     New-Item -ItemType Directory -Force (Join-Path $modStage "Scripts") | Out-Null
-    Copy-Item (Join-Path $modSource "Scripts\main.lua") (Join-Path $modStage "Scripts\main.lua")
+    Get-ChildItem (Join-Path $modSource "Scripts") -Filter "*.lua" |
+        Copy-Item -Destination (Join-Path $modStage "Scripts")
 
     # Create output directory
     if (-not (Test-Path $outputDir)) { New-Item -ItemType Directory -Force $outputDir | Out-Null }
@@ -73,12 +74,13 @@ if (-not $PublishOnly) {
     Write-Host ""
     Write-Host "Release built: $zipPath ($size KB)" -ForegroundColor Green
     Write-Host ""
+    $luaFiles = Get-ChildItem (Join-Path $modSource "Scripts") -Filter "*.lua" | Select-Object -ExpandProperty Name
     Write-Host "Contents:" -ForegroundColor Yellow
     Write-Host "  BetterBuildingTools/"
     Write-Host "    enabled.txt"
     Write-Host "    config.txt"
     Write-Host "    dlls/main.dll"
-    Write-Host "    Scripts/main.lua"
+    foreach ($f in $luaFiles) { Write-Host "    Scripts/$f" }
 }
 
 # ── PUBLISH TO NEXUS ───────────────────────────────────────────────────

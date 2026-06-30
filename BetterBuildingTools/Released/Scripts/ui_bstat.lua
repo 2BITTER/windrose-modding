@@ -8,7 +8,6 @@ local function create(H)
         ValueTexts = {},
         _settingsRef = nil,  -- set later by main.lua
     }
-
     function BStat.SetSettingsRef(ref) BStat._settingsRef = ref end
 
     function BStat.Update()

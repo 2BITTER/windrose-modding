@@ -20,6 +20,8 @@ std::atomic<bool> g_reqMatchAngle{false};
 // Match-angle hold state — set on Alt+C, cleared when player manually rotates.
 BBTQuat           g_copyAngleTarget{0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0};
 std::atomic<bool> g_copyAngleHold{false};
+std::atomic<bool> g_copyAngleFired{false};
+std::atomic<bool> g_copyObjFired{false};
 
 // Cached lookups — these scan the whole UObject table, so we do them once and
 // reuse. Re-find only if the cached pointer goes stale (world reload, etc.).

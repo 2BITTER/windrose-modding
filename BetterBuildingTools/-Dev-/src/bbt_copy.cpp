@@ -210,6 +210,7 @@ void TryCopyObject()
     construct->ProcessEvent(setFn, &setParams);
     Output::send<LogLevel::Verbose>(
         STR("[CopyObject] >>> Swapped build selection to {} <<<\n"), item->GetName());
+    g_copyObjFired = true;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -271,8 +272,16 @@ static void ApplyBrushQuaternion(UObject* constructionContext, double tx, double
 
 // Reapplied every Post-tick while g_copyAngleHold is true.
 // Keeps BrushQuaternion at the target so placement lands at the copied angle.
-// Ghost visual does NOT update live (known limitation — toggle destroy/build
-// mode to force re-init). See project notes for full history of attempts.
+//
+// Ghost visual fix (2026-06-25):
+// RotateBrush fires OnBrushQuaternionChanged but the preview actor doesn't
+// respond — it only updates when the StrategyTask triggers a new trace result.
+// Fix: after updating the context quaternion, also force-rotate the preview
+// actor directly so the ghost visually matches the copied angle each tick.
+//
+// StrategyTask subclasses:
+//   _Single      → PreviewActor       @ 0x0250 (AR5BuildingConstructTargetPreview*)
+//   _FastBuilding → Previews[0]       @ 0x01F8 (TArray<AR5BuildingConstructTargetSimplifiedPreview*>)
 void SyncMatchAngle()
 {
     if (!g_copyAngleHold) return;
@@ -282,9 +291,14 @@ void SyncMatchAngle()
         reinterpret_cast<uint8_t*>(construct) + 0x03D0);
     if (!IsObjectValid(context))   { g_copyAngleHold = false; return; }
 
+    // Step 1: keep BrushQuaternion locked to target (existing behaviour)
     ApplyBrushQuaternion(context,
         g_copyAngleTarget.X, g_copyAngleTarget.Y,
         g_copyAngleTarget.Z, g_copyAngleTarget.W, false);
+
+    // Step 2 (ghost rotation) is handled by the NotifyConstructTargetFound post-hook
+    // in bbt_keystone.cpp — firing there runs during the actor tick before the render
+    // thread captures transforms, which is why post-engine-tick was too late.
 }
 
 void TryMatchAngle()
@@ -346,14 +360,28 @@ void TryMatchAngle()
     }
 
     g_copyAngleTarget = { quat.GetX(), quat.GetY(), quat.GetZ(), quat.GetW(), rot.Pitch, rot.Yaw, rot.Roll };
-    g_copyAngleHold   = true;
     Output::send<LogLevel::Verbose>(
         STR("[CopyAngle] Locking rotation to {} (pitch={:.1f} yaw={:.1f} roll={:.1f}) quat=({:.3f},{:.3f},{:.3f},{:.3f})\n"),
         best->GetName(), rot.Pitch, rot.Yaw, rot.Roll,
         g_copyAngleTarget.X, g_copyAngleTarget.Y, g_copyAngleTarget.Z, g_copyAngleTarget.W);
-    // First immediate application with diagnostic logging (before/after readback).
+    // First immediate application.
     ApplyBrushQuaternion(context, g_copyAngleTarget.X, g_copyAngleTarget.Y,
                          g_copyAngleTarget.Z, g_copyAngleTarget.W, true);
+
+    // SetBuildingBrush with the current brush re-triggers the delegate chain,
+    // spawning a new StrategyTask + PreviewActor that reads the updated
+    // BrushQuaternion — ghost should appear immediately at the correct angle
+    // without requiring the player to click (unlike EndTask which kills the task).
+    UObject* currentBrush = *reinterpret_cast<UObject**>(
+        reinterpret_cast<uint8_t*>(context) + 0x0098);
+    UFunction* setFn = construct->GetFunctionByNameInChain(STR("SetBuildingBrush"));
+    if (setFn && currentBrush && IsObjectValid(currentBrush))
+    {
+        struct { UObject* Brush; } setParams{ currentBrush };
+        construct->ProcessEvent(setFn, &setParams);
+        Output::send<LogLevel::Verbose>(STR("[CopyAngle] SetBuildingBrush re-set to {}\n"), currentBrush->GetName());
+    }
+    g_copyAngleFired = true;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -423,7 +451,7 @@ static UObject* TraceForBlockQuiet(UObject* worldCtx,
 void UpdateLookAtData()
 {
     if (!g_inBuildVisual.load() || !g_cfg.bstatEnabled) { g_lookAtData.valid = false; return; }
-    if (++g_lookAtData.frameSkip < 12) return; // ~5 Hz at 60fps
+    if (++g_lookAtData.frameSkip < 30) return; // ~1 Hz at 30fps, ~2 Hz at 60fps
     g_lookAtData.frameSkip = 0;
 
     UObject* pc = GetPlayerController();

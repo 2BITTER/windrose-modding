@@ -107,6 +107,11 @@ struct BBTQuat { double X, Y, Z, W; double RotPitch, RotYaw, RotRoll; };
 extern BBTQuat           g_copyAngleTarget;
 extern std::atomic<bool> g_copyAngleHold;
 
+// One-shot notification flags — set in C++ when an action fires, read+cleared
+// atomically in Lua via GetBuildStatus (exchange false on read = auto-reset).
+extern std::atomic<bool> g_copyAngleFired;
+extern std::atomic<bool> g_copyObjFired;
+
 // Look-at data (shared between copy and bridge)
 struct LookAtData {
     double yaw{0.0};
@@ -171,6 +176,29 @@ bool BBT_AnyFineStepEnabled();
 void EnsureRotationHook();
 std::vector<int32_t> BuildRotationCycle();
 
+// bbt_textsigns.cpp
+extern std::atomic<bool> g_reqEditSign;
+void TryEditSign();
+void TextSignsLoad();
+void TextSignsSave();
+void TextSignsApplyAll();
+void TextSignsImGui();
+void TextSignsCleanup();
+void TextSignsProcessFlags();
+void InstallSignKeyboardHook();
+void UninstallSignKeyboardHook();
+void BuildSignPanel();
+void DestroySignPanel();
+void UpdateSignPanelText();
+
+// bbt_keystone.cpp
+extern std::atomic<bool> g_reqKeystoneDump;
+extern std::atomic<bool> g_reqKeystoneReplay;
+void KeystoneReconDump();
+void EnsureKeystoneHook();
+void KeystoneReplayTest();
+void KeystoneImGui();
+
 // bbt_bridge.cpp
 int lua_BBT_GetBuildStatus(lua_State* L);
 int lua_BBT_GetConfig(lua_State* L);
@@ -178,3 +206,6 @@ int lua_BBT_SetConfig(lua_State* L);
 int lua_BBT_SaveConfig(lua_State* L);
 int lua_BuildingUndo_Push(lua_State* L);
 int lua_BuildingUndo_Clear(lua_State* L);
+int lua_BBT_GetSignState(lua_State* L);
+int lua_BBT_SubmitSignText(lua_State* L);
+int lua_BBT_CancelSignEdit(lua_State* L);

@@ -16,6 +16,7 @@ struct FreeBuildTarget
 };
 static std::vector<FreeBuildTarget> g_freeTargets;
 static std::vector<UObject*>        g_validationProfiles;
+static bool g_validationProfilesCached = false;
 static bool g_freeTargetsCached = false;
 static bool g_prevNoCost = false;
 
@@ -48,8 +49,9 @@ void CacheFreeBuildTargets()
 
 void CacheValidationProfiles()
 {
-    if (!g_validationProfiles.empty()) return;
+    if (g_validationProfilesCached) return;
     UObjectGlobals::FindAllOf(STR("R5BuildValidationProfile"), g_validationProfiles);
+    g_validationProfilesCached = true;
     if (!g_validationProfiles.empty())
         Output::send<LogLevel::Verbose>(
             STR("[BBT] Validation profiles found (count={})\n"), g_validationProfiles.size());
@@ -347,8 +349,6 @@ void CacheBonfireItems()
             g_bonfireItemTargets.push_back({flagPtr, *flagPtr});
     }
 
-    if (g_bonfireItemTargets.empty()) return;
-
     g_bonfireItemsCached = true;
     Output::send<LogLevel::Verbose>(
         STR("[BBT] Bonfire item targets cached (count={})\n"), g_bonfireItemTargets.size());
@@ -400,8 +400,6 @@ void CacheShoreItems()
             g_shoreItemTargets.push_back(t);
         }
     }
-
-    if (g_shoreItemTargets.empty()) return;
 
     g_shoreItemsCached = true;
     Output::send<LogLevel::Verbose>(
@@ -481,11 +479,14 @@ void CachePlacementTargets()
         }
     }
 
+    // Always mark cached after first scan — retrying every tick costs ~240ms per call
+    // (StaticFindObject scans the full UObject table when assets aren't loaded).
+    g_placementCached = true;
     bool allFound = g_placeFurnace.thresholdPtr && g_placeKiln.thresholdPtr && g_placeRoofReq.mandatoryNumPtr;
-    if (allFound) {
-        g_placementCached = true;
-        Output::send<LogLevel::Verbose>(STR("[BBT] Placement targets ALL cached\n"));
-    }
+    Output::send<LogLevel::Verbose>(STR("[BBT] Placement targets cached (furnace={} kiln={} roofReq={})\n"),
+        g_placeFurnace.thresholdPtr ? STR("YES") : STR("NO"),
+        g_placeKiln.thresholdPtr    ? STR("YES") : STR("NO"),
+        g_placeRoofReq.mandatoryNumPtr ? STR("YES") : STR("NO"));
 }
 
 void CacheBonfireTargets()
@@ -540,11 +541,11 @@ void CacheCraftBonfireTargets()
         g_craftBonfireTargets.push_back(t);
     }
 
-    if (!allFound && g_craftBonfireTargets.empty()) return;
-
+    // Always mark cached after first scan — retrying every tick costs ~390ms per call.
     g_craftBonfireCached = true;
     Output::send<LogLevel::Verbose>(
-        STR("[BBT] Craft bonfire targets cached (count={})\n"), g_craftBonfireTargets.size());
+        STR("[BBT] Craft bonfire targets cached (count={} allFound={})\n"),
+        g_craftBonfireTargets.size(), allFound);
 }
 
 void SyncPlacementFreedom()
@@ -632,6 +633,10 @@ void FreeBuildCleanup()
         g_validationProfiles.clear();
         g_freeTargetsCached = false;
         g_prevNoCost = false;
+    }
+    if (g_validationProfilesCached) {
+        g_validationProfiles.clear();
+        g_validationProfilesCached = false;
     }
     if (g_decorPatchesCached) {
         g_bonfireRestrictionPatches.clear();

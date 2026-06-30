@@ -5,12 +5,12 @@
 // active. When it goes null→non-null we (re)entered build mode → clear the stale
 // undo stack, because the game resets its own undo history on build-mode exit.
 // Only uses the CACHED construct ptr (no per-frame object-table scan).
-static int  g_earlyCacheStage = 0;   // 0=construct, 1-9=subsystems, 10=done
+static int  g_earlyCacheStage = 0;   // 0=construct, 1-9=subsystems, done at 10
 static int  g_earlyCacheCounter = 0;
 
 static void TryEarlyCache()
 {
-    if (g_earlyCacheStage >= 10) return;
+    if (g_earlyCacheStage >= 11) return;
     if (++g_earlyCacheCounter < 60) return; // one stage per ~second
     g_earlyCacheCounter = 0;
 
@@ -62,6 +62,15 @@ static void TryEarlyCache()
     g_earlyCacheStage++;
 }
 
+// ── Undo grace period ─────────────────────────────────────────────────────────
+// Placing decorations, workbenches, and beds causes a brief build-mode
+// exit+re-enter flicker (the game re-activates the ability). Without this grace
+// period, that flicker clears the undo stack even though the player never
+// intentionally left build mode. 500ms covers the longest observed flicker.
+static constexpr int64_t UNDO_GRACE_MS = 500;
+static std::chrono::steady_clock::time_point g_buildExitTime{};
+static bool g_inGracePeriod = false;
+
 static void CheckBuildMode()
 {
     if (!IsObjectValid(g_cachedConstruct)) {
@@ -83,17 +92,59 @@ static void CheckBuildMode()
     UObject* strategyTask = *reinterpret_cast<UObject**>(
         reinterpret_cast<uint8_t*>(g_cachedConstruct) + 0x03D8);
     bool inBuild = (strategyTask != nullptr);
+
     if (inBuild != g_inBuildPrev)
         Output::send<LogLevel::Verbose>(STR("[BBT-diag] build mode {}\n"), inBuild ? STR("ENTER") : STR("EXIT"));
+
+    if (!inBuild && g_inBuildPrev)
+    {
+        // Build mode just exited — start the grace period clock instead of
+        // clearing immediately. If we re-enter within UNDO_GRACE_MS, the
+        // stack is preserved (flicker detection).
+        g_buildExitTime = std::chrono::steady_clock::now();
+        g_inGracePeriod = true;
+    }
+
     if (inBuild && !g_inBuildPrev)
     {
-        std::lock_guard<std::mutex> lock(g_StackMutex);
-        if (!g_UndoStack.empty())
+        if (g_inGracePeriod)
         {
-            g_UndoStack.clear();
-            Output::send<LogLevel::Verbose>(STR("[BBT] Undo stack reset (build mode reopened)\n"));
+            // Re-entered within grace period — this was a flicker, keep stack
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - g_buildExitTime).count();
+            Output::send<LogLevel::Verbose>(
+                STR("[BBT] Build mode flicker detected ({}ms) — undo stack preserved\n"), elapsed);
+        }
+        else
+        {
+            // Genuine re-entry after a real exit — clear the stack
+            std::lock_guard<std::mutex> lock(g_StackMutex);
+            if (!g_UndoStack.empty())
+            {
+                g_UndoStack.clear();
+                Output::send<LogLevel::Verbose>(STR("[BBT] Undo stack reset (build mode reopened)\n"));
+            }
+        }
+        g_inGracePeriod = false;
+    }
+
+    // Grace period expired without re-entry → genuine exit, clear now
+    if (g_inGracePeriod && !inBuild)
+    {
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - g_buildExitTime).count();
+        if (elapsed >= UNDO_GRACE_MS)
+        {
+            g_inGracePeriod = false;
+            std::lock_guard<std::mutex> lock(g_StackMutex);
+            if (!g_UndoStack.empty())
+            {
+                g_UndoStack.clear();
+                Output::send<LogLevel::Verbose>(STR("[BBT] Undo stack reset (grace period expired {}ms)\n"), elapsed);
+            }
         }
     }
+
     g_inBuildPrev = inBuild;
 }
 
@@ -106,14 +157,14 @@ public:
     BuildingUndoMod() : CppUserModBase()
     {
         ModName        = STR("BetterBuildingTools");
-        ModVersion     = STR("0.36");
+        ModVersion     = STR("0.37");
         ModDescription = STR("BBT — copy object, copy angle, undo, free-build, placement freedom, fine rotation, BStat HUD, in-game settings");
         ModAuthors     = STR("2BIT");
 
         register_tab(STR("BetterBuildingTools"), [](CppUserModBase* /*instance*/) {
             UE4SS_ENABLE_IMGUI();
 
-            ImGui::TextUnformatted("BetterBuildingTools v0.36");
+            ImGui::TextUnformatted("BetterBuildingTools v0.37");
             ImGui::Separator();
 
             bool copyObj = g_cfg.copyObjEnabled;
@@ -192,6 +243,9 @@ public:
             {
                 ImGui::TextDisabled("Cycle: (cached on first use in a build session)");
             }
+
+            TextSignsImGui();
+            KeystoneImGui();
         });
     }
     Hook::GlobalCallbackId m_preTickId  = Hook::ERROR_ID;
@@ -226,6 +280,7 @@ public:
             std::lock_guard<std::mutex> lock(g_StackMutex);
             g_UndoStack.clear();
         }
+        TextSignsCleanup();
 
         Output::send<LogLevel::Verbose>(STR("[BBT] Cleanup complete — safe to unload\n"));
     }
@@ -265,6 +320,7 @@ public:
                 });
             }
             Output::send<LogLevel::Verbose>(STR("[BBT] on_unreal_init: F3 BStat toggle registered\n"));
+
         } catch (...) {
             Output::send<LogLevel::Error>(STR("[BBT] CRASH in keydown registration — continuing without keys\n"));
         }
@@ -275,8 +331,12 @@ public:
                 [](auto& /*info*/, UEngine* /*Engine*/, float /*Dt*/, bool /*bIdle*/) {
                     TryEarlyCache();
                     CheckBuildMode();
+                    if (g_reqEditSign.exchange(false))                              TryEditSign();
+                    if (g_reqKeystoneDump.exchange(false))                          KeystoneReconDump();
+                    TextSignsProcessFlags();
                     if (!g_cachedConstruct) return;
                     EnsureRotationHook();
+                    EnsureKeystoneHook();
                     if (!g_inBuildPrev) return;
                     SyncFreeBuild();
                     SyncStability();
@@ -284,6 +344,7 @@ public:
                     if (g_reqCopyObj.exchange(false)    && g_cfg.copyObjEnabled)    TryCopyObject();
                     if (g_reqMatchAngle.exchange(false) && g_cfg.copyAngleEnabled) TryMatchAngle();
                     if (g_reqUndo.exchange(false)        && g_cfg.undoEnabled)      TryUndo();
+                    if (g_reqKeystoneReplay.exchange(false))                        KeystoneReplayTest();
                 }, preOpts);
             Output::send<LogLevel::Verbose>(STR("[BBT] on_unreal_init: pre-tick registered (id={:#X})\n"), static_cast<uint64_t>(m_preTickId));
         } catch (...) {
@@ -303,7 +364,7 @@ public:
         }
 
         Output::send<LogLevel::Verbose>(
-            STR("[BBT] game-thread dispatcher active — ready v0.36 (undo cooldown + safe unload + keybind bridge)\n"));
+            STR("[BBT] game-thread dispatcher active — ready v0.37 (undo cooldown + safe unload + keybind bridge)\n"));
     }
 
     auto on_lua_start(LuaMadeSimple::Lua& lua,
@@ -324,7 +385,13 @@ public:
         lua_setglobal(L, "BBT_SetConfig");
         lua_pushcfunction(L, lua_BBT_SaveConfig);
         lua_setglobal(L, "BBT_SaveConfig");
-        Output::send<LogLevel::Verbose>(STR("[BBT] Lua globals exposed: BuildingUndo_Push, BuildingUndo_Clear, BBT_GetBuildStatus, BBT_GetConfig, BBT_SetConfig, BBT_SaveConfig\n"));
+        lua_pushcfunction(L, lua_BBT_GetSignState);
+        lua_setglobal(L, "BBT_GetSignState");
+        lua_pushcfunction(L, lua_BBT_SubmitSignText);
+        lua_setglobal(L, "BBT_SubmitSignText");
+        lua_pushcfunction(L, lua_BBT_CancelSignEdit);
+        lua_setglobal(L, "BBT_CancelSignEdit");
+        Output::send<LogLevel::Verbose>(STR("[BBT] Lua globals exposed (incl. TextSigns bridge)\n"));
     }
 };
 
